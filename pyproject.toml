@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "linkedin"
+version = "0.1.0"
+description = ""
+authors = ["QasimTylex <mohammad.qasim@tylextech.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+selenium = "^4.24.0"
+python-dotenv = "^1.0.1"
+webdriver-manager = "^4.0.2"
+pymongo = "^4.10.1"
+undetected-chromedriver = "^3.5.5"
+setuptools = "^80.3.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
