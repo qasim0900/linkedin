@@ -45,11 +45,16 @@ This code retrieves environment variable values and assigns them to respective v
 """
 
 
+email = os.getenv("IN_EMAIL")
 base_url = os.getenv("BASE_URL")
-email = os.getenv("LINKED_IN_EMAIL")
-password = os.getenv("LINKED_IN_PASSWORD")
+password = os.getenv("IN_PASSWORD")
+email_input_xpath = os.getenv("EMAIL_INPUT")
 mongo_connection = os.getenv("MONGO_CONNECTION")
-
+submit_button_xpath = os.getenv("SUBMIT_BUTTON")
+password_input_xpath = os.getenv("PASSWORD_INPUT")
+localtion_message_url = os.getenv("LOCATION_MESSAGE")
+next_link_element_xpath = os.getenv("NEXT_LINK_ELEMENT")
+linkedin_profiles_xpath = os.getenv("LINKEDIN_PROFILES")
 
 # ---------------------------------------
 # :: Google Map List Class
@@ -104,7 +109,7 @@ class GoogleMapList:
                 try:
                     linkedin_profiles = WebDriverWait(self.driver, 10).until(
                         EC.presence_of_all_elements_located(
-                            (By.XPATH, '//div[@class="dURPMd"]//a')
+                            (By.XPATH, linkedin_profiles_xpath)
                         )
                     )
                     if linkedin_profiles:
@@ -150,7 +155,7 @@ class GoogleMapList:
                         EC.element_to_be_clickable(
                             (
                                 By.XPATH,
-                                '//*[@id="pnnext"]',
+                                next_link_element_xpath,
                             )
                         )
                     )
@@ -173,44 +178,47 @@ class GoogleMapList:
         except Exception as e:
             logging.error(f"An unexpected error occurred: {e}", exc_info=True)
 
+    # ---------------------------------------
+    # :: Login Function
+    # ---------------------------------------
+
+    """
+    This code automates a login process using Selenium by filling in email and password
+    fields and clicking the submit button, with timeout error handling.
+    """
+
     def login(self):
         try:
-            # Wait for email input field
             email_input = WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located(
-                    (By.XPATH,
-                     "/html/body/div[1]/main/div[2]/div[1]/form/div[1]/input")
+                    (By.XPATH, email_input_xpath
+                     )
                 )
             )
             email_input.clear()
             email_input.send_keys(email)
 
-            # Wait for password input field
             password_input = WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located(
                     (By.XPATH,
-                     "/html/body/div[1]/main/div[2]/div[1]/form/div[2]/input")
+                     password_input_xpath)
                 )
             )
             password_input.clear()
             password_input.send_keys(password)
-
-            # Wait for and click the submit button
             submit_button = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable(
                     (
                         By.XPATH,
-                        "/html/body/div[1]/main/div[2]/div[1]/form/div[4]/button",
+                        submit_button_xpath,
                     )
                 )
             )
             submit_button.click()
-
-            # Wait for successful login (adjust the condition as needed)
             WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located(
                     (By.XPATH, "//div[@class='application-outlet']")
-                )  # Change this to a valid element after login
+                )
             )
 
             print("Login successful!")
@@ -225,7 +233,8 @@ class GoogleMapList:
     # ---------------------------------------
 
     """
-    The data_fetch method retrieves and validates business information from a webpage using Selenium, storing the results in a structured format.
+    The data_fetch method retrieves and validates business information from a webpage using Selenium, 
+    storing the results in a structured format.
     """
 
     def parse(self):
@@ -245,90 +254,34 @@ class GoogleMapList:
                         time.sleep(1)
                     except TimeoutException:
                         logging.warning(
-                            f"Skipping {linkedin_url} due to slow loading (timeout after 10 sec)."
-                        )
+                            f"Skipping {linkedin_url} due to slow loading (timeout after 10 sec).")
                         continue
-
                     try:
-                        follow_button = WebDriverWait(self.driver, 5).until(
-                            EC.element_to_be_clickable(
-                                (
-                                    By.XPATH,
-                                    "/html/body/div[6]/div[3]/div/div/div[2]/div/div/main/section[1]/div[2]/div[3]/div/button/span",
-                                )
-                            )
+                        buttons = WebDriverWait(self.driver, 5).until(
+                            EC.presence_of_all_elements_located(
+                                (By.XPATH, "//button"))
                         )
+                        for button in buttons:
+                            text = button.text.strip().lower()
+                            if text in ["follow", "connect"]:
+                                try:
+                                    if button.is_displayed() and button.is_enabled():
+                                        button.click()
+                                        logging.info(
+                                            f"Clicked '{text.capitalize()}' button for {linkedin_url}")
+                                        time.sleep(1)
+                                except Exception as click_err:
+                                    logging.warning(
+                                        f"Failed to click '{text}' button: {click_err}")
 
-                        if follow_button and follow_button.text.lower() == "follow":
-                            follow_button.click()
-                            logging.info(
-                                f"Clicked 'Follow' button for {linkedin_url}")
-                            self.collection.update_many(
-                                {"linkedin_url": linkedin_url},
-                                {"$set": {"send_email": "Yes"}},
-                            )
-
-                        else:
-                            self.collection.update_many(
-                                {"linkedin_url": linkedin_url},
-                                {"$set": {"send_email": "Yes"}},
-                            )
-                            logging.info(f"Already following {linkedin_url}")
-
+                        self.collection.update_many(
+                            {"linkedin_url": linkedin_url},
+                            {"$set": {"send_email": "Yes"}},
+                        )
                     except TimeoutException:
                         logging.warning(
-                            f"'Follow' button not found or already clicked for {linkedin_url}"
-                        )
-
-                    name_text = None
-                    try:
-                        name_element = WebDriverWait(self.driver, 5).until(
-                            EC.presence_of_element_located(
-                                (
-                                    By.XPATH,
-                                    "/html/body/div[6]/div[3]/div/div/div[2]/div/div/main/section[1]/div[2]/div[2]/div[1]/div[1]/span[1]/a/h1",
-                                )
-                            )
-                        )
-                        name_text = name_element.text.strip()
-                    except Exception as e:
-                        logging.warning(
-                            f"Name not found for {linkedin_url}: {e}")
-
-                    # Extract Skills
-                    skill_text = None
-                    try:
-                        skill_element = WebDriverWait(self.driver, 5).until(
-                            EC.presence_of_element_located(
-                                (
-                                    By.XPATH,
-                                    "/html/body/div[6]/div[3]/div/div/div[2]/div/div/main/section[1]/div[2]/div[2]/div[1]/div[2]",
-                                )
-                            )
-                        )
-                        skill_text = skill_element.text.strip()
-                    except Exception as e:
-                        logging.warning(
-                            f"Skills not found for {linkedin_url}: {e}")
-
-                    # Prepare data to update
-                    update_data = {}
-                    if name_text:
-                        update_data["Name"] = name_text
-                    if skill_text:
-                        update_data["Skill"] = skill_text
-
-                    # Update MongoDB for this specific LinkedIn profile
-                    if update_data:
-                        self.collection.update_one(
-                            {"linkedin_profile": linkedin_url},  # Filter
-                            # Update only extracted fields
-                            {"$set": update_data},
-                        )
-                        logging.info(f"Updated profile: {linkedin_url}")
-
-                    # Additional delay before processing the next profile
-                    time.sleep(3)  # Wait longer to avoid detection
+                            f"No clickable buttons found for {linkedin_url}")
+                    time.sleep(3)
 
         except Exception as e:
             logging.error(
@@ -388,6 +341,27 @@ class GoogleMapList:
                 f"An unexpected error occurred while connecting to MongoDB: {str(e)}"
             )
             raise
+
+    # ----------------------------------------
+    # :: Message Function
+    # ---------------------------------------
+
+    """
+    The __del__ method ensures that the web driver is properly closed when the GoogleMap object is deleted.
+    """
+
+    def message(self):
+    
+            flag = self.login()
+            self.driver.get(localtion_message_url)
+            buttons = WebDriverWait(self.driver, 5).until(
+                    EC.presence_of_all_elements_located(
+                        (By.XPATH, "//button"))
+                )
+            for button in buttons:
+                text = button.text.strip().lower()
+                if text == "message":
+                    print("text",text)
 
     # ----------------------------------------
     # :: Destructor Function
